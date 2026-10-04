@@ -210,7 +210,7 @@ function VpdtSection({
 }
 
 // ──────────────────────────────────────────────
-// Section B: Google OAuth
+// Section B: Gmail App Password
 // ──────────────────────────────────────────────
 function GoogleSection({
   status,
@@ -221,26 +221,24 @@ function GoogleSection({
   message: string;
   onStatusChange: (s: ConnectionStatus, m: string) => void;
 }) {
-  const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
-  const [gmailTo, setGmailTo] = useState('');
+  const [email, setEmail] = useState('');
+  const [appPassword, setAppPassword] = useState('');
   const [showGuide, setShowGuide] = useState(false);
 
-  const handleStartOAuth = async () => {
-    if (!clientId || !clientSecret) return;
-    onStatusChange('loading', 'Đang khởi tạo OAuth...');
+  const handleConnect = async () => {
+    if (!email || !appPassword) return;
+    onStatusChange('loading', 'Đang xác thực...');
     try {
       const res = await fetch('/api/onboarding/google/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, clientSecret, gmailToAddress: gmailTo }),
+        body: JSON.stringify({ email, appPassword }),
       });
-      const data = await res.json() as { authUrl?: string; error?: string };
-      if (data.authUrl) {
-        onStatusChange('waiting', 'Đang chờ xác thực Google...');
-        window.open(data.authUrl, '_blank', 'width=600,height=700');
+      const data = await res.json() as { success?: boolean; message?: string; error?: string };
+      if (data.success) {
+        onStatusChange('connected', data.message ?? 'Đã kết nối qua App Password');
       } else {
-        onStatusChange('error', data.error ?? 'Lỗi');
+        onStatusChange('error', data.error ?? data.message ?? 'Lỗi');
       }
     } catch (e) {
       onStatusChange('error', 'Lỗi: ' + String(e));
@@ -256,63 +254,48 @@ function GoogleSection({
         onClick={() => setShowGuide(!showGuide)}
         className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-blue-500/5 border border-blue-500/20 text-sm text-blue-300 hover:bg-blue-500/10 transition-colors"
       >
-        <span>📋 Hướng dẫn tạo Google OAuth Client ID</span>
+        <span>📋 Hướng dẫn tạo Mật khẩu ứng dụng Gmail</span>
         <span>{showGuide ? '▲' : '▼'}</span>
       </button>
 
       {showGuide && (
         <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-2">
           <ol className="text-xs text-white/60 space-y-2 list-decimal list-inside">
-            <li>Vào <a href="https://console.cloud.google.com/" target="_blank" className="text-blue-400 underline">Google Cloud Console</a> → Tạo project mới</li>
-            <li>APIs & Services → Enable API → bật <strong className="text-white/80">Google Drive API</strong> và <strong className="text-white/80">Gmail API</strong></li>
-            <li>Credentials → Create Credentials → <strong className="text-white/80">OAuth client ID</strong></li>
-            <li>Application type: <strong className="text-white/80">Web application</strong></li>
-            <li>Authorized redirect URIs: thêm <code className="bg-white/10 px-1 rounded text-xs">{typeof window !== 'undefined' ? window.location.origin : ''}/api/onboarding/google/callback</code></li>
-            <li>Copy <strong className="text-white/80">Client ID</strong> và <strong className="text-white/80">Client Secret</strong> → dán vào bên dưới</li>
-            <li>OAuth consent screen → Test users → thêm email Gmail của bạn</li>
+            <li>Vào tài khoản Google của bạn → Bảo mật (Security)</li>
+            <li>Bật <strong>Xác minh 2 bước (2-Step Verification)</strong> nếu chưa bật.</li>
+            <li>Sau khi bật, tìm mục <strong>Mật khẩu ứng dụng (App Passwords)</strong>.</li>
+            <li>Tạo một mật khẩu mới (nhập tên bất kỳ, ví dụ: &quot;VPDT App&quot;).</li>
+            <li>Copy mật khẩu (16 chữ cái) đó và dán vào ô bên dưới.</li>
           </ol>
+          <div className="mt-2 text-xs text-blue-300/80 italic">
+            Lưu ý: Chúng tôi đã gỡ bỏ tính năng lưu file lên Google Drive để đơn giản hóa quá trình cài đặt. Hệ thống sẽ chỉ gửi thông báo qua Email này.
+          </div>
         </div>
       )}
 
       <div className="space-y-3">
         <input
-          type="text"
-          value={clientId}
-          onChange={e => setClientId(e.target.value)}
-          placeholder="Google Client ID (xxxx.apps.googleusercontent.com)"
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="Địa chỉ Gmail (VD: ten@gmail.com)"
           className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <input
           type="password"
-          value={clientSecret}
-          onChange={e => setClientSecret(e.target.value)}
-          placeholder="Client Secret"
-          className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <input
-          type="email"
-          value={gmailTo}
-          onChange={e => setGmailTo(e.target.value)}
-          placeholder="Email nhận digest (VD: ten@gmail.com)"
+          value={appPassword}
+          onChange={e => setAppPassword(e.target.value)}
+          placeholder="Mật khẩu ứng dụng (16 ký tự, không chứa dấu cách)"
           className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button
-          onClick={handleStartOAuth}
-          disabled={status === 'loading' || !clientId || !clientSecret}
+          onClick={handleConnect}
+          disabled={status === 'loading' || !email || !appPassword}
           className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z" />
-          </svg>
-          Xác thực Google
+          Xác thực Gmail
         </button>
       </div>
-
-      {status === 'waiting' && (
-        <div className="text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
-          ⏳ Cửa sổ xác thực đã mở. Đăng nhập Gmail và đồng ý cấp quyền, sau đó trang này sẽ tự cập nhật.
-        </div>
-      )}
     </div>
   );
 }

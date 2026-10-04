@@ -49,10 +49,8 @@ export async function GET(req: NextRequest) {
       getCredential('telegram', 'chat_id').then(Boolean),
     ]);
 
-    const onboardingComplete = (vpdtHasSession || !!(await getCredential('vpdt', 'manual_cookie')))
-      && googleHasRefresh
-      && telegramHasToken
-      && telegramHasChatId;
+    // Chỉ bắt buộc VPĐT, các dịch vụ khác (Google, Telegram) có thể bỏ qua
+    const onboardingComplete = (vpdtHasSession || !!(await getCredential('vpdt', 'manual_cookie')));
 
     return NextResponse.json({
       onboardingComplete,

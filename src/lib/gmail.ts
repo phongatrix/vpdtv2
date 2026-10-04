@@ -1,11 +1,9 @@
 // src/lib/gmail.ts
-// Gửi email digest qua Gmail API
-// Attach file ≤25MB; lớn hơn chỉ gửi link Drive
+// Gửi email digest qua Nodemailer + App Password
+// Attach file ≤25MB; lớn hơn chỉ gửi link Drive (Drive bị disable do dùng App Password)
 
-import { getValidAccessToken } from './google-oauth';
 import { getCredential } from './credentials';
-
-const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
+import nodemailer from 'nodemailer';
 
 interface DigestDoc {
   soVanBan: string;
@@ -27,7 +25,7 @@ function buildDigestHtml(docs: DigestDoc[], runId: string): string {
           <td style="padding:8px;border:1px solid #ddd">${d.tieuDe}</td>
           <td style="padding:8px;border:1px solid #ddd">${d.ngay}</td>
           <td style="padding:8px;border:1px solid #ddd">
-            <a href="${d.driveLink}">Xem trên Drive</a>
+            (Đã tải lên Telegram)
           </td>
         </tr>`
     )
@@ -52,33 +50,10 @@ function buildDigestHtml(docs: DigestDoc[], runId: string): string {
     <tbody>${rows}</tbody>
   </table>
   <p style="color:#666;font-size:12px;margin-top:20px">
-    Email này được gửi tự động bởi VPDT Forwarder.
+    Email này được gửi tự động bởi VPDT Forwarder (via App Password).
   </p>
 </body>
 </html>`;
-}
-
-/**
- * Encode email theo RFC 2822 (base64url)
- */
-function encodeEmail(params: {
-  to: string;
-  from: string;
-  subject: string;
-  html: string;
-}): string {
-  const message = [
-    `From: ${params.from}`,
-    `To: ${params.to}`,
-    `Subject: =?UTF-8?B?${Buffer.from(params.subject).toString('base64')}?=`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=UTF-8',
-    'Content-Transfer-Encoding: base64',
-    '',
-    Buffer.from(params.html).toString('base64'),
-  ].join('\r\n');
-
-  return Buffer.from(message).toString('base64url');
 }
 
 /**
@@ -89,37 +64,31 @@ export async function sendDigestEmail(
   runId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const token = await getValidAccessToken();
+    const email = await getCredential('google', 'gmail_address');
+    const appPassword = await getCredential('google', 'gmail_app_password');
     const toAddress = await getCredential('google', 'gmail_to_address');
-    const fromEmail = await getCredential('google', 'user_email');
 
-    if (!toAddress) {
-      return { success: false, error: 'Chưa cấu hình địa chỉ email nhận' };
+    if (!email || !appPassword || !toAddress) {
+      return { success: false, error: 'Chưa cấu hình tài khoản Gmail App Password' };
     }
 
     const subject = `[VPĐT] ${docs.length} văn bản mới — ${new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`;
     const html = buildDigestHtml(docs, runId);
 
-    const raw = encodeEmail({
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: email,
+        pass: appPassword
+      }
+    });
+
+    await transporter.sendMail({
+      from: `"VPDT Forwarder" <${email}>`,
       to: toAddress,
-      from: fromEmail ?? 'me',
       subject,
       html,
     });
-
-    const res = await fetch(GMAIL_API, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ raw }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json() as { error?: { message?: string } };
-      return { success: false, error: `Gmail API lỗi: ${err?.error?.message ?? res.status}` };
-    }
 
     return { success: true };
   } catch (err) {
@@ -129,3 +98,4 @@ export async function sendDigestEmail(
     };
   }
 }
+
