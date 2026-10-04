@@ -182,80 +182,47 @@ export async function scrapeDocumentList(
   }
 
   const json = await res.json();
-  
-  // Throw the first item as an error so we can see its structure in the UI!
-  if (json.content && json.content.length > 0) {
-    throw new Error('DEBUG_JSON: ' + JSON.stringify(json.content[0]).substring(0, 500));
-  }
-
-  return [];
-}
-
-/**
- * Parser danh sách văn bản từ HTML
- * NOTE: Cần fixture HTML thật từ site để verify selector
- */
-export function parseDocumentList(html: string): VpdtDocument[] {
-  const $ = cheerio.load(html);
   const docs: VpdtDocument[] = [];
 
-  // Selector cần verify với HTML thật — đây là guess based on common VPDT patterns
-  $('table tbody tr, .van-ban-item, .document-item').each((_, el) => {
-    const $el = $(el);
-    const tieuDe = $el.find('.tieu-de, td:nth-child(3), .title').text().trim();
-    const soVanBan = $el.find('.so-van-ban, td:nth-child(2), .doc-number').text().trim();
-    const ngay = $el.find('.ngay, td:nth-child(4), .date').text().trim();
-    const coQuan = $el.find('.co-quan, td:nth-child(5), .agency').text().trim();
-    const href =
-      $el.find('a').attr('href') ||
-      $el.find('[href]').attr('href') ||
-      '';
-    const url = href.startsWith('http') ? href : `${VPDT_BASE}${href}`;
+  if (json.content && Array.isArray(json.content)) {
+    for (const item of json.content) {
+      if (!item.document) continue;
+      
+      const doc = item.document;
+      
+      // Định dạng ngày (ISO -> DD/MM/YYYY)
+      let dateStr = doc.promulgationInfo?.date || '';
+      if (dateStr) {
+        try {
+          const d = new Date(dateStr);
+          dateStr = d.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+        } catch (e) {
+          // fallback to raw string
+        }
+      }
 
-    if (tieuDe && href) {
-      docs.push({ soVanBan, tieuDe, ngay, coQuan, url, attachments: [] });
+      docs.push({
+        soVanBan: doc.code?.value || '(Không số)',
+        tieuDe: doc.subject || '(Không có tiêu đề)',
+        ngay: dateStr,
+        coQuan: doc.promulgationInfo?.place || '(Không rõ cơ quan)',
+        url: `https://vpdt.dongthap.gov.vn/vi/document-process/info/5f714e1bfa1d20b3c61f429b/${doc.id}/${item.id}/undefined`,
+        attachments: [],
+      });
     }
-  });
+  }
 
   return docs;
 }
 
-/**
- * Trích xuất chi tiết 1 văn bản
- * CHƯA VERIFY — selector cần verify với HTML thật
- */
 export async function scrapeDocumentDetail(
   url: string,
   cookie: string
 ): Promise<{ content: string; attachments: { name: string; url: string }[] }> {
-  const res = await fetch(url, {
-    headers: { ...BROWSER_HEADERS, Cookie: cookie, Referer: VPDT_BASE },
-  });
-
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} khi tải chi tiết văn bản: ${url}`);
-  }
-
-  const html = await res.text();
-  const $ = cheerio.load(html);
-
-  // Content (selector cần verify)
-  const content = $('.content-detail, .van-ban-content, article, .body-content').html() ?? html;
-
-  // Attachments
-  const attachments: { name: string; url: string }[] = [];
-  $('a[href*=".pdf"], a[href*=".doc"], a[href*=".docx"], a[href*="download"]').each((_, el) => {
-    const href = $(el).attr('href') ?? '';
-    const name = $(el).text().trim() || 'file';
-    if (href) {
-      attachments.push({
-        name,
-        url: href.startsWith('http') ? href : `${VPDT_BASE}${href}`,
-      });
-    }
-  });
-
-  return { content, attachments };
+  // VPĐT mới là SPA (Angular/React), giao diện HTML chỉ chứa thẻ <app-root>.
+  // Để tối ưu, ta tạm bỏ qua việc đọc nội dung chi tiết & file đính kèm qua API (vì cần trace API rất phức tạp).
+  // Hệ thống sẽ chỉ gửi thông tin cơ bản và đường link để người dùng bấm vào xem.
+  return { content: '', attachments: [] };
 }
 
 /**
