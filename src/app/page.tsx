@@ -97,9 +97,14 @@ export default function DashboardPage() {
         router.push('/login');
         return;
       }
-      const json = await res.json() as StatusData;
-      setData(json);
-      if (!json.onboardingComplete) {
+      const json = await res.json();
+      if (!res.ok) {
+        console.error('API Error:', json);
+        return; // Don't set data if error, keep loading or handle error
+      }
+      const statusData = json as StatusData;
+      setData(statusData);
+      if (!statusData.onboardingComplete) {
         router.push('/onboarding');
       }
     } catch {
