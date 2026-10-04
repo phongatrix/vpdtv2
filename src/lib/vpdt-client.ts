@@ -166,23 +166,29 @@ export interface VpdtDocument {
  */
 export async function scrapeDocumentList(
   cookie: string,
-  page = 1
+  page = 0
 ): Promise<VpdtDocument[]> {
-  const url = `${VPDT_BASE}/VanBan/DanhSach?page=${page}`;
+  // Use the new API endpoint
+  const url = `https://apicqs.dongthap.gov.vn/do/document-forwarding/--search?status=2&page=${page}&size=10`;
   const res = await fetch(url, {
     headers: {
-      ...BROWSER_HEADERS,
-      Cookie: cookie,
-      Referer: VPDT_BASE,
+      Authorization: cookie.startsWith('Bearer') ? cookie : `Bearer ${cookie}`,
+      Accept: 'application/json, text/plain, */*',
     },
   });
 
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status} khi quét danh sách văn bản`);
+    throw new Error(`HTTP ${res.status} API lỗi`);
   }
 
-  const html = await res.text();
-  return parseDocumentList(html);
+  const json = await res.json();
+  
+  // Throw the first item as an error so we can see its structure in the UI!
+  if (json.content && json.content.length > 0) {
+    throw new Error('DEBUG_JSON: ' + JSON.stringify(json.content[0]).substring(0, 500));
+  }
+
+  return [];
 }
 
 /**
