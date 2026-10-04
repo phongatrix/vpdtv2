@@ -264,7 +264,7 @@ function GoogleSection({
             <li>Vào tài khoản Google của bạn → Bảo mật (Security)</li>
             <li>Bật <strong>Xác minh 2 bước (2-Step Verification)</strong> nếu chưa bật.</li>
             <li>Sau khi bật, tìm mục <strong>Mật khẩu ứng dụng (App Passwords)</strong>.</li>
-            <li>Tạo một mật khẩu mới (nhập tên bất kỳ, ví dụ: "VPDT App").</li>
+            <li>Tạo một mật khẩu mới (nhập tên bất kỳ, ví dụ: &quot;VPDT App&quot;).</li>
             <li>Copy mật khẩu (16 chữ cái) đó và dán vào ô bên dưới.</li>
           </ol>
           <div className="mt-2 text-xs text-blue-300/80 italic">
