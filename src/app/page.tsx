@@ -110,7 +110,7 @@ export default function DashboardPage() {
       if (!statusData.onboardingComplete) {
         router.push('/onboarding');
       }
-    } catch (err) {
+    } catch {
       setApiError('Lỗi kết nối máy chủ');
     } finally {
       setLoading(false);
