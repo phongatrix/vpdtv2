@@ -139,7 +139,7 @@ export default function DashboardPage() {
     router.push('/login');
   };
 
-  if (loading) {
+  if (loading || !data) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-white/50 flex items-center gap-3">
