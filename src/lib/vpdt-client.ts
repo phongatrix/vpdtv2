@@ -196,7 +196,7 @@ export async function scrapeDocumentList(
         try {
           const d = new Date(dateStr);
           dateStr = d.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-        } catch (e) {
+        } catch (_e) {
           // fallback to raw string
         }
       }
@@ -216,8 +216,8 @@ export async function scrapeDocumentList(
 }
 
 export async function scrapeDocumentDetail(
-  url: string,
-  cookie: string
+  _url: string,
+  _cookie: string
 ): Promise<{ content: string; attachments: { name: string; url: string }[] }> {
   // VPĐT mới là SPA (Angular/React), giao diện HTML chỉ chứa thẻ <app-root>.
   // Để tối ưu, ta tạm bỏ qua việc đọc nội dung chi tiết & file đính kèm qua API (vì cần trace API rất phức tạp).
