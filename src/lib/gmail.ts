@@ -9,8 +9,8 @@ interface DigestDoc {
   soVanBan: string;
   tieuDe: string;
   ngay: string;
-  driveLink: string;
-  attachments?: { name: string; size: number; driveLink: string }[];
+  coQuan: string;
+  url: string;
 }
 
 /**
@@ -21,12 +21,12 @@ function buildDigestHtml(docs: DigestDoc[], runId: string): string {
     .map(
       (d) =>
         `<tr>
-          <td style="padding:8px;border:1px solid #ddd">${d.soVanBan}</td>
-          <td style="padding:8px;border:1px solid #ddd">${d.tieuDe}</td>
-          <td style="padding:8px;border:1px solid #ddd">${d.ngay}</td>
+          <td style="padding:8px;border:1px solid #ddd;white-space:nowrap">${d.soVanBan}</td>
           <td style="padding:8px;border:1px solid #ddd">
-            (Đã tải lên Telegram)
+            <a href="${d.url}" style="color:#4f46e5;text-decoration:none">${d.tieuDe}</a>
           </td>
+          <td style="padding:8px;border:1px solid #ddd;white-space:nowrap">${d.ngay}</td>
+          <td style="padding:8px;border:1px solid #ddd;font-size:12px;color:#555">${d.coQuan}</td>
         </tr>`
     )
     .join('');
@@ -34,7 +34,7 @@ function buildDigestHtml(docs: DigestDoc[], runId: string): string {
   return `<!DOCTYPE html>
 <html lang="vi">
 <head><meta charset="UTF-8"><title>VPĐT Digest</title></head>
-<body style="font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:20px">
+<body style="font-family:Arial,sans-serif;max-width:900px;margin:0 auto;padding:20px">
   <h2>📄 Tổng hợp văn bản VPĐT mới</h2>
   <p>Run ID: <code>${runId}</code> | Thời gian: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
   <p>Có <strong>${docs.length}</strong> văn bản mới:</p>
@@ -44,13 +44,14 @@ function buildDigestHtml(docs: DigestDoc[], runId: string): string {
         <th style="padding:8px;text-align:left">Số văn bản</th>
         <th style="padding:8px;text-align:left">Tiêu đề</th>
         <th style="padding:8px;text-align:left">Ngày</th>
-        <th style="padding:8px;text-align:left">Link</th>
+        <th style="padding:8px;text-align:left">Cơ quan ban hành</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>
   <p style="color:#666;font-size:12px;margin-top:20px">
-    Email này được gửi tự động bởi VPDT Forwarder (via App Password).
+    Email này được gửi tự động bởi VPDT Forwarder.
+    Nhấn vào tiêu đề văn bản để xem chi tiết trên hệ thống VPĐT.
   </p>
 </body>
 </html>`;

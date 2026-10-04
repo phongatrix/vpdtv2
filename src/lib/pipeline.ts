@@ -225,7 +225,8 @@ export async function runSyncPipeline(): Promise<{
         soVanBan: doc.soVanBan,
         tieuDe: doc.tieuDe,
         ngay: doc.ngay,
-        driveLink: '', // Không có Drive Link
+        coQuan: doc.coQuan,
+        url: doc.url,
       });
     }
 
