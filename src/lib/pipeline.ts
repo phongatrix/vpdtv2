@@ -206,8 +206,9 @@ export async function runSyncPipeline(): Promise<{
     newCount = newDocs.length;
     await emitStage(runId, 'Download & Dedupe', 'DONE', `${newCount} văn bản mới, ${scrapedCount - newCount} đã bỏ qua (trùng)`);
 
-    // ── Stage 4: Upload Drive (DISABLED - Using App Password) ─────────
-    await emitStage(runId, 'Upload Drive', 'SKIPPED', 'Tính năng Google Drive đã bị vô hiệu hóa vì dùng App Password');
+    // ── Stage 4: Upload Drive ────────────────────────────────────────
+    await emitStage(runId, 'Upload Drive', 'STARTED');
+    const { uploadDocument } = await import('./google-drive');
     const digestDocs = [];
     
     for (const doc of newDocs) {
@@ -215,19 +216,37 @@ export async function runSyncPipeline(): Promise<{
       const detail = (doc as any)._detail;
       if (!detail) continue;
 
-      uploadedCount++;
-      await database.execute(
-        `UPDATE documents SET status = ? WHERE url = ?`,
-        ['processed', doc.url]
-      );
+      try {
+        const { webLinks } = await uploadDocument({
+          soVanBan: doc.soVanBan,
+          ngay: doc.ngay,
+          metadataJson: detail.metadata,
+          contentHtml: detail.contentHtml,
+          attachments: detail.downloadedFiles,
+        });
 
-      digestDocs.push({
-        soVanBan: doc.soVanBan,
-        tieuDe: doc.tieuDe,
-        ngay: doc.ngay,
-        driveLink: '', // Không có Drive Link
-      });
+        uploadedCount++;
+        await database.execute(
+          `UPDATE documents SET status = ? WHERE url = ?`,
+          ['uploaded', doc.url]
+        );
+
+        digestDocs.push({
+          soVanBan: doc.soVanBan,
+          tieuDe: doc.tieuDe,
+          ngay: doc.ngay,
+          driveLink: webLinks[0] ?? '', // Link folder hoặc file metadata
+        });
+      } catch (uploadErr) {
+        const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+        console.error(`[Stage 4] Drive upload failed for ${doc.soVanBan}:`, msg);
+        await database.execute(
+          `UPDATE documents SET status = ?, error = ? WHERE url = ?`,
+          ['error', msg, doc.url]
+        );
+      }
     }
+    await emitStage(runId, 'Upload Drive', 'DONE', `Đã upload ${uploadedCount}/${newCount} văn bản`);
 
     // ── Stage 5: Gửi email ──────────────────────────────────────────
     await emitStage(runId, 'Send Email', 'STARTED');

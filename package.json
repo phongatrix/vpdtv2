@@ -19,14 +19,12 @@
     "iron-session": "^9.0.1",
     "jose": "^6.2.12",
     "next": "^14.2.14",
-    "nodemailer": "^10.0.14",
     "react": "^18",
     "react-dom": "^18",
     "uuid": "^14.0.2"
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@types/nodemailer": "^8.0.2",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",

@@ -1,48 +1,47 @@
+// src/app/api/onboarding/google/start/route.ts
+// Bắt đầu Google OAuth flow — lưu client_id/secret → trả về auth URL
+
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
 import { saveCredential } from '@/lib/credentials';
-import nodemailer from 'nodemailer';
+import { buildAuthUrl } from '@/lib/google-oauth';
+import { isRateLimited, getRateLimitKey } from '@/lib/rate-limit';
+import { requireAuth } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   if (!await requireAuth(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+  if (isRateLimited(getRateLimitKey(ip, '/api/onboarding/google/start'), 5, 60_000)) {
+    return NextResponse.json({ error: 'Quá nhiều yêu cầu' }, { status: 429 });
+  }
+
   const body = await req.json() as {
-    email?: string;
-    appPassword?: string;
+    clientId?: string;
+    clientSecret?: string;
+    gmailToAddress?: string;
   };
 
-  const { email, appPassword } = body;
+  const { clientId, clientSecret, gmailToAddress } = body;
 
-  if (!email || !appPassword) {
-    return NextResponse.json({ error: 'Thiếu email hoặc mật khẩu ứng dụng' }, { status: 400 });
+  if (!clientId || !clientSecret) {
+    return NextResponse.json({ error: 'Thiếu Client ID hoặc Client Secret' }, { status: 400 });
   }
 
-  try {
-    // Test the connection
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: email,
-        pass: appPassword
-      }
-    });
+  console.log(`[AUDIT] google-onboarding start ip=${ip}`);
 
-    await transporter.verify();
-
-    // Save credentials
-    await saveCredential('google', 'gmail_address', email);
-    await saveCredential('google', 'gmail_app_password', appPassword);
-    
-    // Legacy support to mark it connected
-    await saveCredential('google', 'refresh_token', 'app_password_mode');
-    await saveCredential('google', 'gmail_to_address', email); // send to self
-
-    return NextResponse.json({ success: true, message: 'Đã kết nối qua Mật khẩu ứng dụng' });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('Lỗi xác thực App Password:', msg);
-    return NextResponse.json({ error: 'Xác thực thất bại. Vui lòng kiểm tra lại Email và Mật khẩu ứng dụng.' }, { status: 400 });
+  // Lưu credentials
+  await saveCredential('google', 'client_id', clientId);
+  await saveCredential('google', 'client_secret', clientSecret);
+  if (gmailToAddress) {
+    await saveCredential('google', 'gmail_to_address', gmailToAddress);
   }
+
+  // Tạo OAuth URL
+  const appUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
+  const redirectUri = `${appUrl}/api/onboarding/google/callback`;
+  const authUrl = await buildAuthUrl(redirectUri);
+
+  return NextResponse.json({ authUrl });
 }
