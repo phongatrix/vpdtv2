@@ -1,7 +1,7 @@
 // src/lib/db.ts
 // Database layer — SQLite via @libsql/client (Turso) hoặc file local cho dev
 
-import { createClient } from '@libsql/client';
+import { createClient, InArgs } from '@libsql/client';
 
 let _client: ReturnType<typeof createClient> | null = null;
 
@@ -20,11 +20,11 @@ function getClient() {
 }
 
 export const db = {
-  execute: async (sql: string, args?: Record<string, unknown> | unknown[]) => {
+  execute: async (sql: string, args?: InArgs) => {
     const client = getClient();
     return client.execute({ sql, args: args ?? [] });
   },
-  batch: async (statements: { sql: string; args?: Record<string, unknown> | unknown[] }[]) => {
+  batch: async (statements: { sql: string; args?: InArgs }[]) => {
     const client = getClient();
     return client.batch(
       statements.map((s) => ({ sql: s.sql, args: s.args ?? [] })),

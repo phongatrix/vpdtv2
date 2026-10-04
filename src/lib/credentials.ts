@@ -86,7 +86,7 @@ export async function getCredential(
     [service, keyName]
   );
   if (result.rows.length === 0) return null;
-  const row = result.rows[0] as { value_encrypted: string };
+  const row = result.rows[0] as unknown as { value_encrypted: string };
   return decrypt(row.value_encrypted);
 }
 

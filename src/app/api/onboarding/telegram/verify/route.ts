@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const botInfo = result.result as { username?: string; first_name?: string };
+  const botInfo = result.result as unknown as { username?: string; first_name?: string };
 
   // Lưu token vào DB
   await saveCredential('telegram', 'bot_token', botToken);

@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `Lỗi Telegram API: ${result.description}` }, { status: 500 });
   }
 
-  const updates = result.result as Array<{
+  const updates = result.result as unknown as Array<{
     message?: { chat?: { id: number; type?: string; first_name?: string } };
   }>;
 
