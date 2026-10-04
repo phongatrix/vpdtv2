@@ -98,8 +98,8 @@ export async function runSyncPipeline(): Promise<{
   await telegram.notifyStart(runId);
 
   let newCount = 0;
-  const uploadedCount = 0;
-  const emailedCount = 0;
+  let uploadedCount = 0;
+  let emailedCount = 0;
   let scrapedCount = 0;
 
   try {
@@ -127,39 +127,142 @@ export async function runSyncPipeline(): Promise<{
     }
     await emitStage(runId, 'Scrape Documents', 'DONE', `Đã quét ${scrapedCount} văn bản`);
 
-    // ── Stage 3: Dedupe + Download ───────────────────────────────────
+    // ── Stage 3: Dedupe + Detail & Download ──────────────────────────
     await emitStage(runId, 'Download & Dedupe', 'STARTED');
     const { db: database } = await import('./db');
+    const { scrapeDocumentDetail, downloadAttachment } = await import('./vpdt-client');
     const newDocs = [];
 
     for (const doc of docs) {
-      // Kiểm tra đã xử lý chưa
+      // Dedupe
       const existing = await database.execute(
         `SELECT id FROM documents WHERE url = ?`,
         [doc.url]
       );
       if (existing.rows.length === 0) {
         newDocs.push(doc);
-        // Tạo record chờ xử lý
+        const docId = uuidv4();
         await database.execute(
           `INSERT INTO documents (id, so_van_ban, tieu_de, ngay, url, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [uuidv4(), doc.soVanBan, doc.tieuDe, doc.ngay, doc.url, 'pending', new Date().toISOString()]
+          [docId, doc.soVanBan, doc.tieuDe, doc.ngay, doc.url, 'downloading', new Date().toISOString()]
         );
+
+        try {
+          // Trích xuất chi tiết
+          const detail = await scrapeDocumentDetail(doc.url, cookie);
+          
+          // Tạo metadata và content
+          const metadata = JSON.stringify({
+            soVanBan: doc.soVanBan,
+            tieuDe: doc.tieuDe,
+            ngay: doc.ngay,
+            coQuan: doc.coQuan,
+            url: doc.url,
+            scrapedAt: new Date().toISOString()
+          }, null, 2);
+
+          const contentHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>${doc.tieuDe}</title></head>
+<body>
+  <h1>${doc.tieuDe}</h1>
+  <p><strong>Số VB:</strong> ${doc.soVanBan} | <strong>Ngày:</strong> ${doc.ngay} | <strong>Cơ quan:</strong> ${doc.coQuan}</p>
+  <hr/>
+  ${detail.content}
+</body>
+</html>`;
+
+          // Tải attachments (giữ trên /tmp hoặc memory, nhưng vì serverless nên ta có thể 
+          // lưu tạm memory để truyền sang Stage 4)
+          // Ở Stage 3, ta chỉ verify là có thể tải được.
+          const downloadedFiles = [];
+          for (const att of detail.attachments) {
+             const fileData = await downloadAttachment(att.url, cookie);
+             downloadedFiles.push(fileData);
+          }
+
+          // Cập nhật DB trạng thái pending_upload
+          await database.execute(
+            `UPDATE documents SET status = ? WHERE id = ?`,
+            ['pending_upload', docId]
+          );
+
+          // Tạm thời gắn vào doc để log/debug (thực tế Stage 4 sẽ dùng)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (doc as any)._detail = { contentHtml, metadata, downloadedFiles };
+
+        } catch (detailErr) {
+           const msg = detailErr instanceof Error ? detailErr.message : String(detailErr);
+           console.error(`[Stage 3] Partial failure for doc ${doc.soVanBan}:`, msg);
+           await database.execute(
+            `UPDATE documents SET status = ?, error = ? WHERE id = ?`,
+            ['error', msg, docId]
+          );
+           // Vẫn tiếp tục với văn bản khác (partial failure OK)
+        }
       }
     }
     newCount = newDocs.length;
-    await emitStage(runId, 'Download & Dedupe', 'DONE', `${newCount} văn bản mới, ${scrapedCount - newCount} đã có`);
+    await emitStage(runId, 'Download & Dedupe', 'DONE', `${newCount} văn bản mới, ${scrapedCount - newCount} đã bỏ qua (trùng)`);
 
     // ── Stage 4: Upload Drive ────────────────────────────────────────
     await emitStage(runId, 'Upload Drive', 'STARTED');
-    // TODO: implement upload per doc (Stage 4)
-    // Placeholder — sẽ implement đầy đủ ở Stage 4
-    await emitStage(runId, 'Upload Drive', 'SKIPPED', 'Stage 4 — sẽ implement sau');
+    const { uploadDocument } = await import('./google-drive');
+    const digestDocs = [];
+    
+    for (const doc of newDocs) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detail = (doc as any)._detail;
+      if (!detail) continue;
+
+      try {
+        const { webLinks } = await uploadDocument({
+          soVanBan: doc.soVanBan,
+          ngay: doc.ngay,
+          metadataJson: detail.metadata,
+          contentHtml: detail.contentHtml,
+          attachments: detail.downloadedFiles,
+        });
+
+        uploadedCount++;
+        await database.execute(
+          `UPDATE documents SET status = ? WHERE url = ?`,
+          ['uploaded', doc.url]
+        );
+
+        digestDocs.push({
+          soVanBan: doc.soVanBan,
+          tieuDe: doc.tieuDe,
+          ngay: doc.ngay,
+          driveLink: webLinks[0] ?? '', // Link folder hoặc file metadata
+        });
+      } catch (uploadErr) {
+        const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+        console.error(`[Stage 4] Drive upload failed for ${doc.soVanBan}:`, msg);
+        await database.execute(
+          `UPDATE documents SET status = ?, error = ? WHERE url = ?`,
+          ['error', msg, doc.url]
+        );
+      }
+    }
+    await emitStage(runId, 'Upload Drive', 'DONE', `Đã upload ${uploadedCount}/${newCount} văn bản`);
 
     // ── Stage 5: Gửi email ──────────────────────────────────────────
     await emitStage(runId, 'Send Email', 'STARTED');
-    // TODO: implement email digest (Stage 4)
-    await emitStage(runId, 'Send Email', 'SKIPPED', 'Stage 4 — sẽ implement sau');
+    if (digestDocs.length > 0) {
+      const { sendDigestEmail } = await import('./gmail');
+      const emailRes = await sendDigestEmail(digestDocs, runId);
+      
+      if (emailRes.success) {
+        emailedCount = digestDocs.length;
+        await emitStage(runId, 'Send Email', 'DONE', `Đã gửi email ${emailedCount} văn bản`);
+      } else {
+        await emitStage(runId, 'Send Email', 'FAILED', emailRes.error);
+      }
+    } else {
+      await emitStage(runId, 'Send Email', 'SKIPPED', 'Không có văn bản nào cần gửi email');
+    }
 
     // ── Stage 6: Telegram summary ────────────────────────────────────
     await emitStage(runId, 'Telegram Notify', 'STARTED');
