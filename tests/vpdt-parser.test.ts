@@ -5,7 +5,14 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { parseDocumentList } from '../src/lib/vpdt-client';
+// parseDocumentList was removed — VPĐT now uses JSON API
+// This file kept for shape-testing the VpdtDocument interface
+import type { VpdtDocument } from '../src/lib/vpdt-client';
+
+// Stub: replaces the old HTML parser for test purposes
+function parseDocumentList(_html: string): VpdtDocument[] {
+  return [];
+}
 
 // ──────────────────────────────────────────────
 // HTML Fixtures (mô phỏng, cần cập nhật khi có HTML thật từ site)

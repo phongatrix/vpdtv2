@@ -210,7 +210,7 @@ function VpdtSection({
 }
 
 // ──────────────────────────────────────────────
-// Section B: Gmail App Password
+// Section B: Gmail App Password + Drive OAuth
 // ──────────────────────────────────────────────
 function GoogleSection({
   status,
@@ -224,6 +224,10 @@ function GoogleSection({
   const [email, setEmail] = useState('');
   const [appPassword, setAppPassword] = useState('');
   const [showGuide, setShowGuide] = useState(false);
+  const [showDriveGuide, setShowDriveGuide] = useState(false);
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [driveSaved, setDriveSaved] = useState(false);
 
   const handleConnect = async () => {
     if (!email || !appPassword) return;
@@ -245,35 +249,54 @@ function GoogleSection({
     }
   };
 
+  const handleSaveDrive = async () => {
+    if (!clientId || !clientSecret) return;
+    try {
+      const res = await fetch('/api/onboarding/google/drive-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, clientSecret }),
+      });
+      const data = await res.json() as { success?: boolean; authUrl?: string; error?: string };
+      if (data.success && data.authUrl) {
+        // Redirect to Google consent screen
+        window.location.href = data.authUrl;
+      } else {
+        alert(data.error ?? 'Lỗi khi lưu Drive credentials');
+      }
+    } catch (e) {
+      alert('Lỗi kết nối: ' + String(e));
+    }
+  };
+
   return (
     <div className="space-y-4">
       <StatusBadge status={status} message={message || 'Chưa kết nối'} />
 
-      {/* Guide accordion */}
-      <button
-        onClick={() => setShowGuide(!showGuide)}
-        className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-blue-500/5 border border-blue-500/20 text-sm text-blue-300 hover:bg-blue-500/10 transition-colors"
-      >
-        <span>📋 Hướng dẫn tạo Mật khẩu ứng dụng Gmail</span>
-        <span>{showGuide ? '▲' : '▼'}</span>
-      </button>
+      {/* ─── App Password (Email) ─── */}
+      <div className="p-4 rounded-xl bg-white/3 border border-white/10 space-y-3">
+        <p className="text-xs font-semibold text-white/60 uppercase tracking-wider">📧 Gmail — Gửi Email thông báo</p>
 
-      {showGuide && (
-        <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-2">
-          <ol className="text-xs text-white/60 space-y-2 list-decimal list-inside">
-            <li>Vào tài khoản Google của bạn → Bảo mật (Security)</li>
-            <li>Bật <strong>Xác minh 2 bước (2-Step Verification)</strong> nếu chưa bật.</li>
-            <li>Sau khi bật, tìm mục <strong>Mật khẩu ứng dụng (App Passwords)</strong>.</li>
-            <li>Tạo một mật khẩu mới (nhập tên bất kỳ, ví dụ: &quot;VPDT App&quot;).</li>
-            <li>Copy mật khẩu (16 chữ cái) đó và dán vào ô bên dưới.</li>
-          </ol>
-          <div className="mt-2 text-xs text-blue-300/80 italic">
-            Lưu ý: Chúng tôi đã gỡ bỏ tính năng lưu file lên Google Drive để đơn giản hóa quá trình cài đặt. Hệ thống sẽ chỉ gửi thông báo qua Email này.
+        <button
+          onClick={() => setShowGuide(!showGuide)}
+          className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-blue-500/5 border border-blue-500/20 text-sm text-blue-300 hover:bg-blue-500/10 transition-colors"
+        >
+          <span>📋 Hướng dẫn tạo Mật khẩu ứng dụng Gmail</span>
+          <span>{showGuide ? '▲' : '▼'}</span>
+        </button>
+
+        {showGuide && (
+          <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-2">
+            <ol className="text-xs text-white/60 space-y-2 list-decimal list-inside">
+              <li>Vào tài khoản Google của bạn → Bảo mật (Security)</li>
+              <li>Bật <strong>Xác minh 2 bước (2-Step Verification)</strong> nếu chưa bật.</li>
+              <li>Sau khi bật, tìm mục <strong>Mật khẩu ứng dụng (App Passwords)</strong>.</li>
+              <li>Tạo một mật khẩu mới (nhập tên bất kỳ, ví dụ: &quot;VPDT App&quot;).</li>
+              <li>Copy mật khẩu (16 chữ cái) đó và dán vào ô bên dưới.</li>
+            </ol>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="space-y-3">
         <input
           type="email"
           value={email}
@@ -294,6 +317,60 @@ function GoogleSection({
           className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
         >
           Xác thực Gmail
+        </button>
+      </div>
+
+      {/* ─── Google Drive OAuth ─── */}
+      <div className="p-4 rounded-xl bg-white/3 border border-white/10 space-y-3">
+        <p className="text-xs font-semibold text-white/60 uppercase tracking-wider">☁️ Google Drive — Lưu trữ văn bản</p>
+
+        <button
+          onClick={() => setShowDriveGuide(!showDriveGuide)}
+          className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-sm text-emerald-300 hover:bg-emerald-500/10 transition-colors"
+        >
+          <span>📋 Hướng dẫn tạo Google OAuth Client ID</span>
+          <span>{showDriveGuide ? '▲' : '▼'}</span>
+        </button>
+
+        {showDriveGuide && (
+          <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10 space-y-2">
+            <ol className="text-xs text-white/60 space-y-2 list-decimal list-inside">
+              <li>Vào <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-emerald-400 underline">console.cloud.google.com</a></li>
+              <li>Tạo Project mới (hoặc chọn project hiện có)</li>
+              <li>Vào <strong>APIs &amp; Services → Enable APIs</strong> → bật <strong>Google Drive API</strong></li>
+              <li>Vào <strong>APIs &amp; Services → OAuth consent screen</strong> → chọn External → điền tên app</li>
+              <li>Thêm scope: <code className="bg-white/10 px-1 rounded">.../auth/drive.file</code></li>
+              <li>Vào <strong>APIs &amp; Services → Credentials → Create Credentials → OAuth 2.0 Client ID</strong></li>
+              <li>Application type: <strong>Web application</strong></li>
+              <li>Authorized redirect URIs: thêm <code className="bg-white/10 px-1 rounded text-yellow-300">https://vpdtv2-ikl4.vercel.app/api/onboarding/google/callback</code></li>
+              <li>Copy <strong>Client ID</strong> và <strong>Client Secret</strong> dán vào bên dưới</li>
+            </ol>
+          </div>
+        )}
+
+        <input
+          type="text"
+          value={clientId}
+          onChange={e => setClientId(e.target.value)}
+          placeholder="Google Client ID (kết thúc bằng .apps.googleusercontent.com)"
+          className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+        <input
+          type="password"
+          value={clientSecret}
+          onChange={e => setClientSecret(e.target.value)}
+          placeholder="Google Client Secret"
+          className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+        {driveSaved && (
+          <p className="text-xs text-emerald-400">✅ Đã lưu credentials. Nhấn nút bên dưới để xác thực với Google.</p>
+        )}
+        <button
+          onClick={handleSaveDrive}
+          disabled={!clientId || !clientSecret}
+          className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+        >
+          🔗 Kết nối Google Drive (OAuth)
         </button>
       </div>
     </div>

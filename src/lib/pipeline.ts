@@ -206,16 +206,44 @@ export async function runSyncPipeline(): Promise<{
     newCount = newDocs.length;
     await emitStage(runId, 'Download & Dedupe', 'DONE', `${newCount} văn bản mới, ${scrapedCount - newCount} đã bỏ qua (trùng)`);
 
-    // ── Stage 4: Upload Drive (DISABLED - Using App Password) ─────────
-    await emitStage(runId, 'Upload Drive', 'SKIPPED', 'Tính năng Google Drive đã bị vô hiệu hóa vì dùng App Password');
+    // ── Stage 4: Upload Drive ─────────────────────────────────────────
+    await emitStage(runId, 'Upload Drive', 'STARTED');
+    const { uploadDocument } = await import('./google-drive');
+    const { getCredential: getCred } = await import('./credentials');
+    const hasOAuthToken = !!(await getCred('google', 'refresh_token')) &&
+      (await getCred('google', 'refresh_token')) !== 'app_password_mode';
     const digestDocs = [];
-    
+
     for (const doc of newDocs) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const detail = (doc as any)._detail;
-      if (!detail) continue;
+      if (!detail) {
+        digestDocs.push({ soVanBan: doc.soVanBan, tieuDe: doc.tieuDe, ngay: doc.ngay, coQuan: doc.coQuan, url: doc.url });
+        continue;
+      }
 
-      uploadedCount++;
+      let driveWebLink = '';
+      if (hasOAuthToken) {
+        try {
+          const result = await uploadDocument({
+            soVanBan: doc.soVanBan,
+            ngay: doc.ngay,
+            metadataJson: detail.metadata,
+            contentHtml: detail.contentHtml,
+            attachments: [],
+          });
+          driveWebLink = result.webLinks[0] ?? '';
+          uploadedCount++;
+        } catch (driveErr) {
+          const msg = driveErr instanceof Error ? driveErr.message : String(driveErr);
+          console.error(`[Stage 4] Drive upload failed for ${doc.soVanBan}:`, msg);
+          // Không throw — tiếp tục gửi email dù Drive lỗi
+        }
+      } else {
+        // Không có Drive token — bỏ qua upload
+        uploadedCount++;
+      }
+
       await database.execute(
         `UPDATE documents SET status = ? WHERE url = ?`,
         ['processed', doc.url]
@@ -226,9 +254,16 @@ export async function runSyncPipeline(): Promise<{
         tieuDe: doc.tieuDe,
         ngay: doc.ngay,
         coQuan: doc.coQuan,
-        url: doc.url,
+        url: driveWebLink || doc.url, // Ưu tiên Drive link nếu có
       });
     }
+
+    if (!hasOAuthToken) {
+      await emitStage(runId, 'Upload Drive', 'SKIPPED', 'Chưa kết nối Google Drive OAuth. Bỏ qua.');
+    } else {
+      await emitStage(runId, 'Upload Drive', 'DONE', `Đã upload ${uploadedCount} văn bản lên Drive`);
+    }
+
 
     // ── Stage 5: Gửi email ──────────────────────────────────────────
     await emitStage(runId, 'Send Email', 'STARTED');
