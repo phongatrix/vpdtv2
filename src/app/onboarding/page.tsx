@@ -96,14 +96,14 @@ function VpdtSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, mode: 'auto' }),
       });
-      const data = await res.json() as { success?: boolean; blocked?: boolean; message?: string; status?: string };
+      const data = await res.json() as { success?: boolean; blocked?: boolean; message?: string; status?: string; error?: string };
       if (data.success) {
         onStatusChange('connected', data.message ?? 'Đã kết nối');
       } else if (data.blocked) {
         onStatusChange('blocked', data.message ?? 'WAF chặn IP');
         setShowManual(true);
       } else {
-        onStatusChange('error', data.message ?? 'Lỗi kết nối');
+        onStatusChange('error', data.error ?? data.message ?? 'Lỗi kết nối');
       }
     } catch (e) {
       onStatusChange('error', 'Lỗi: ' + String(e));
@@ -119,11 +119,11 @@ function VpdtSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, cookie, mode: 'manual' }),
       });
-      const data = await res.json() as { success?: boolean; message?: string };
+      const data = await res.json() as { success?: boolean; message?: string; error?: string };
       if (data.success) {
         onStatusChange('connected', 'Cookie thủ công đã được lưu');
       } else {
-        onStatusChange('error', data.message ?? 'Lỗi');
+        onStatusChange('error', data.error ?? data.message ?? 'Lỗi');
       }
     } catch (e) {
       onStatusChange('error', 'Lỗi: ' + String(e));
