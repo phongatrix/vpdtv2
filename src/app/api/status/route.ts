@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     );
 
     // Lấy stage_events cho run gần nhất
-    const runs = runsResult.rows as Array<{ id: string; [key: string]: unknown }>;
+    const runs = runsResult.rows as unknown as Array<{ id: string; [key: string]: unknown }>;
     let latestRunEvents: unknown[] = [];
 
     if (runs.length > 0) {
