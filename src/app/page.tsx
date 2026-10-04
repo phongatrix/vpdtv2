@@ -85,6 +85,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string>('');
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
@@ -100,15 +101,17 @@ export default function DashboardPage() {
       const json = await res.json();
       if (!res.ok) {
         console.error('API Error:', json);
-        return; // Don't set data if error, keep loading or handle error
+        setApiError(json.error || 'Lỗi API không xác định');
+        return;
       }
+      setApiError(null);
       const statusData = json as StatusData;
       setData(statusData);
       if (!statusData.onboardingComplete) {
         router.push('/onboarding');
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      setApiError('Lỗi kết nối máy chủ');
     } finally {
       setLoading(false);
     }
@@ -143,6 +146,18 @@ export default function DashboardPage() {
     await fetch('/api/auth/login', { method: 'DELETE' });
     router.push('/login');
   };
+
+  if (apiError) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl max-w-lg text-center">
+          <h2 className="text-red-400 font-bold mb-2">Lỗi máy chủ / Database</h2>
+          <p className="text-white/70 text-sm mb-4">{apiError}</p>
+          <button onClick={() => window.location.reload()} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-white text-sm transition">Thử lại</button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || !data) {
     return (
