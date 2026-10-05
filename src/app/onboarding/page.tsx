@@ -81,8 +81,8 @@ function VpdtSection({
   message: string;
   onStatusChange: (s: ConnectionStatus, m: string) => void;
 }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('311589430');
+  const [password, setPassword] = useState('Vnpt@123');
   const [cookie, setCookie] = useState('');
   const [showManual, setShowManual] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -223,8 +223,8 @@ function GoogleSection({
   message: string;
   onStatusChange: (s: ConnectionStatus, m: string) => void;
 }) {
-  const [email, setEmail] = useState('');
-  const [appPassword, setAppPassword] = useState('');
+  const [email, setEmail] = useState('phongatrix@gmail.com');
+  const [appPassword, setAppPassword] = useState('nxjy uoif pfpb ybre');
   const [showGuide, setShowGuide] = useState(false);
   const [showDriveGuide, setShowDriveGuide] = useState(false);
   const [clientId, setClientId] = useState('');
