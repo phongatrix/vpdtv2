@@ -169,7 +169,7 @@ export async function scrapeDocumentList(
   page = 0
 ): Promise<VpdtDocument[]> {
   const dateStr = encodeURIComponent("2026-07-05T00:00.000+0000");
-  const url = `https://apicqs.dongthap.gov.vn/do/document-forwarding/--search?status=2&saved-from=${dateStr}&assignee=628d053bedd83e6bebbb54cc&checkBookNumber=false&sort=id,desc&page=${page}&size=10&document-flow-id=5f714e1bfa1d20b3c61f429b&root-agency-code=H20.4.82&status=1&mark=false&ignore-count=true`;
+  const url = `https://apicqs.dongthap.gov.vn/do/document-forwarding/--search?status=2&saved-from=${dateStr}&assignee=628d053bedd83e6bebbb54cc&checkBookNumber=false&sort=id,desc&page=${page}&size=300&document-flow-id=5f714e1bfa1d20b3c61f429b&root-agency-code=H20.4.82&status=1&mark=false&ignore-count=true`;
   const res = await fetch(url, {
     headers: {
       Authorization: cookie.startsWith('Bearer') ? cookie : `Bearer ${cookie}`,
