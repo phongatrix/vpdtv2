@@ -49,8 +49,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu username hoặc password' }, { status: 400 });
     }
 
-    // Lưu username (không lưu password — chỉ lưu session)
+    // Lưu username và password để có thể tự động gia hạn token (auto-login)
     await saveCredential('vpdt', 'username', username);
+    await saveCredential('vpdt', 'password', password);
 
     const result = await loginVpdt(username, password);
 
