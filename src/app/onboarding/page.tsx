@@ -227,7 +227,7 @@ function GoogleSection({
   const [showDriveGuide, setShowDriveGuide] = useState(false);
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
-  const [driveSaved, setDriveSaved] = useState(false);
+  const driveSaved = false;
 
   const handleConnect = async () => {
     if (!email || !appPassword) return;
