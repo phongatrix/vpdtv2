@@ -3,7 +3,7 @@
 // Lưu ý: WAF/bot-detection có thể chặn IP datacenter (Attack ID 20000051)
 // FALLBACK: chế độ cookie thủ công (user paste từ trình duyệt)
 
-import * as cheerio from 'cheerio';
+
 import { getCredential } from './credentials';
 
 const VPDT_BASE = 'https://vpdt.dongthap.gov.vn';
