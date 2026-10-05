@@ -141,13 +141,15 @@ function VpdtSection({
           value={username}
           onChange={e => setUsername(e.target.value)}
           placeholder="Tên đăng nhập VPĐT"
+          autoComplete="off"
           className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
         <input
           type="password"
           value={password}
           onChange={e => setPassword(e.target.value)}
-          placeholder="Mật khẩu"
+          placeholder="Mật khẩu VPĐT"
+          autoComplete="new-password"
           className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
         <button
