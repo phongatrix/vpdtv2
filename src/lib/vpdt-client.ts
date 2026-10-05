@@ -31,112 +31,50 @@ export async function loginVpdt(
   password: string
 ): Promise<VpdtLoginResult> {
   try {
-    // Bước 1: GET trang login
-    const loginPageRes = await fetch(`${VPDT_BASE}/Account/Login`, {
-      headers: { ...BROWSER_HEADERS, Referer: VPDT_BASE },
-      redirect: 'manual',
+    const tokenUrl = 'https://ssocqs.dongthap.gov.vn/auth/realms/digo/protocol/openid-connect/token';
+    const params = new URLSearchParams({
+      client_id: 'test-public',
+      grant_type: 'password',
+      username: username,
+      password: password
     });
 
-    // Kiểm tra WAF block
-    if (loginPageRes.status === 403 || loginPageRes.status === 406) {
-      return {
-        success: false,
-        blocked: true,
-        error: `WAF chặn IP (HTTP ${loginPageRes.status}). Vui lòng dùng chế độ cookie thủ công.`,
-      };
-    }
-
-    const loginHtml = await loginPageRes.text();
-
-    // Kiểm tra block page
-    if (
-      loginHtml.includes('Access Denied') ||
-      loginHtml.includes('Attack ID') ||
-      loginHtml.includes('20000051')
-    ) {
-      return {
-        success: false,
-        blocked: true,
-        error: 'WAF chặn IP — trang trả về Access Denied. Vui lòng dùng chế độ cookie thủ công.',
-      };
-    }
-
-    // Trích xuất CSRF token (nếu có)
-    const $ = cheerio.load(loginHtml);
-    const csrfToken =
-      $('input[name="__RequestVerificationToken"]').val() ||
-      $('input[name="_token"]').val() ||
-      '';
-
-    // Bước 2: POST credentials
-    const formData = new URLSearchParams({
-      UserName: username,
-      Password: password,
-      ...(csrfToken ? { __RequestVerificationToken: String(csrfToken) } : {}),
-    });
-
-    const loginRes = await fetch(`${VPDT_BASE}/Account/Login`, {
+    const res = await fetch(tokenUrl, {
       method: 'POST',
       headers: {
-        ...BROWSER_HEADERS,
         'Content-Type': 'application/x-www-form-urlencoded',
-        Referer: `${VPDT_BASE}/Account/Login`,
-        Origin: VPDT_BASE,
+        'Accept': 'application/json'
       },
-      body: formData.toString(),
-      redirect: 'manual',
+      body: params.toString()
     });
 
-    // Bước 3: Kiểm tra kết quả
-    if (loginRes.status === 302 || loginRes.status === 301) {
-      const setCookie = loginRes.headers.get('set-cookie') ?? '';
-      const location = loginRes.headers.get('location') ?? '';
+    const json = await res.json().catch(() => ({}));
 
-      // Nếu redirect về Login → sai credentials
-      if (location.includes('Login') && !location.includes('ReturnUrl')) {
-        return { success: false, blocked: false, error: 'Sai tên đăng nhập hoặc mật khẩu.' };
-      }
-
-      // Lấy session cookie
-      const cookies = setCookie
-        .split(',')
-        .map((c) => c.split(';')[0].trim())
-        .filter((c) => c.includes('='))
-        .join('; ');
-
-      if (!cookies) {
-        return { success: false, blocked: false, error: 'Không nhận được session cookie sau login.' };
-      }
-
-      // TTL 8 tiếng
-      const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
-      return { success: true, cookie: cookies, expiresAt };
-    }
-
-    // HTTP 200 sau POST thường nghĩa là login fail (form hiển thị lại)
-    const resultHtml = await loginRes.text();
-    if (resultHtml.includes('Attack ID') || resultHtml.includes('Access Denied')) {
+    if (res.ok && json.access_token) {
+      const expiresAt = new Date(Date.now() + (json.expires_in || 3600) * 1000).toISOString();
+      return {
+        success: true,
+        cookie: `Bearer ${json.access_token}`, // Return as Bearer token format
+        expiresAt
+      };
+    } else {
+      console.error('[loginVpdt] Keycloak error:', json);
       return {
         success: false,
-        blocked: true,
-        error: 'WAF chặn IP sau POST. Vui lòng dùng chế độ cookie thủ công.',
+        blocked: false,
+        error: json.error_description || json.error || 'Sai tên đăng nhập hoặc mật khẩu.'
       };
     }
-
-    return { success: false, blocked: false, error: 'Đăng nhập thất bại. Kiểm tra lại thông tin.' };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const blocked =
-      message.includes('ECONNREFUSED') ||
-      message.includes('ETIMEDOUT') ||
-      message.includes('fetch failed');
     return {
       success: false,
-      blocked,
-      error: `Lỗi kết nối: ${message}`,
+      blocked: false,
+      error: `Lỗi kết nối SSO: ${message}`,
     };
   }
 }
+
 
 /**
  * Lấy cookie hiện tại từ DB (tự động hoặc thủ công)
