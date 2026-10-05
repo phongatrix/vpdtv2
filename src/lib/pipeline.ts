@@ -118,7 +118,7 @@ export async function runSyncPipeline(): Promise<{
     const { scrapeDocumentList } = await import('./vpdt-client');
     let docs = [];
     try {
-      docs = await scrapeDocumentList(cookie, 1);
+      docs = await scrapeDocumentList(cookie);
       scrapedCount = docs.length;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -131,17 +131,24 @@ export async function runSyncPipeline(): Promise<{
     await emitStage(runId, 'Download & Dedupe', 'STARTED');
     const { db: database } = await import('./db');
     const { scrapeDocumentDetail, downloadAttachment } = await import('./vpdt-client');
-    const newDocs = [];
-
+    const newDocsRaw = [];
+    // Bước 3.1: Lọc ra các văn bản mới
     for (const doc of docs) {
-      // Dedupe
       const existing = await database.execute(
         `SELECT id FROM documents WHERE url = ?`,
         [doc.url]
       );
       if (existing.rows.length === 0) {
-        newDocs.push(doc);
-        const docId = uuidv4();
+        newDocsRaw.push(doc);
+      }
+    }
+
+    // Đảo ngược danh sách để xử lý theo thời gian nối tiếp lần trước (cũ nhất trong số mới -> mới nhất)
+    const newDocs = newDocsRaw.reverse();
+
+    // Bước 3.2: Xử lý và tải xuống
+    for (const doc of newDocs) {
+      const docId = uuidv4();
         await database.execute(
           `INSERT INTO documents (id, so_van_ban, tieu_de, ngay, url, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [docId, doc.soVanBan, doc.tieuDe, doc.ngay, doc.url, 'downloading', new Date().toISOString()]
@@ -201,7 +208,6 @@ export async function runSyncPipeline(): Promise<{
           );
            // Vẫn tiếp tục với văn bản khác (partial failure OK)
         }
-      }
     }
     newCount = newDocs.length;
     await emitStage(runId, 'Download & Dedupe', 'DONE', `${newCount} văn bản mới, ${scrapedCount - newCount} đã bỏ qua (trùng)`);

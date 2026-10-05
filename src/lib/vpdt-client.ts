@@ -103,29 +103,24 @@ export interface VpdtDocument {
  * CHƯA VERIFY — WAF có thể chặn IP Vercel
  */
 export async function scrapeDocumentList(
-  cookie: string,
-  _page = 0 // Ignored, we fetch all pages now
+  cookie: string
 ): Promise<VpdtDocument[]> {
   const dateStr = encodeURIComponent("2026-07-05T00:00.000+0000");
-  const baseUrl = `https://apicqs.dongthap.gov.vn/do/document-forwarding/--search?saved-from=${dateStr}&assignee=628d053bedd83e6bebbb54cc&checkBookNumber=false&sort=id,desc&document-flow-id=5f714e1bfa1d20b3c61f429b&root-agency-code=H20.4.82&status=1&mark=false&ignore-count=true`;
+  const url = `https://apicqs.dongthap.gov.vn/do/document-forwarding/--search?saved-from=${dateStr}&assignee=628d053bedd83e6bebbb54cc&checkBookNumber=false&sort=id,desc&page=0&size=50&document-flow-id=5f714e1bfa1d20b3c61f429b&root-agency-code=H20.4.82&status=1&mark=false&ignore-count=true`;
   const headers = {
     Authorization: cookie.startsWith('Bearer') ? cookie : `Bearer ${cookie}`,
     Accept: 'application/json, text/plain, */*',
   };
 
-  // Fetch first page to get totalPages
-  const firstRes = await fetch(`${baseUrl}&page=0&size=50`, { headers });
-  if (!firstRes.ok) throw new Error(`HTTP ${firstRes.status} API lỗi`);
-  const firstJson = await firstRes.json();
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`HTTP ${res.status} API lỗi`);
+  const json = await res.json();
 
-  const totalPages = firstJson.totalPages || 1;
   const docs: VpdtDocument[] = [];
 
-  // Parse items function
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const parseItems = (content: any[]) => {
-    if (!content || !Array.isArray(content)) return;
-    for (const item of content) {
+  // Parse items
+  if (json.content && Array.isArray(json.content)) {
+    for (const item of json.content) {
       if (!item.document) continue;
       const doc = item.document;
       let dateStr = doc.promulgationInfo?.date || '';
@@ -144,22 +139,6 @@ export async function scrapeDocumentList(
         attachments: [],
       });
     }
-  };
-
-  parseItems(firstJson.content);
-
-  // Fetch remaining pages in parallel
-  if (totalPages > 1) {
-    const promises = [];
-    for (let p = 1; p < totalPages; p++) {
-      promises.push(
-        fetch(`${baseUrl}&page=${p}&size=50`, { headers })
-          .then(res => res.json())
-          .then(json => parseItems(json.content))
-          .catch(err => console.error(`Failed to fetch page ${p}:`, err))
-      );
-    }
-    await Promise.all(promises);
   }
 
   return docs;
